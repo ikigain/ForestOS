@@ -74,11 +74,19 @@ apt install -y \
 update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
 echo "  ✓ Python version: $(python3 --version)"
 
-# Install PostgreSQL client (assuming AliCloud PostgreSQL is used)
-echo -e "${GREEN}[5/15] Installing PostgreSQL client...${NC}"
-apt install -y postgresql-client-common postgresql-client
-echo "  ✓ PostgreSQL client installed"
-echo "  ℹ Note: Configure AliCloud PostgreSQL connection in .env file"
+# Install PostgreSQL server
+echo -e "${GREEN}[5/15] Installing PostgreSQL server...${NC}"
+apt install -y postgresql postgresql-contrib
+systemctl start postgresql
+systemctl enable postgresql
+echo "  ✓ PostgreSQL server installed and running"
+
+# Create database and user
+echo "  Creating ForestOS database..."
+sudo -u postgres psql -c "CREATE USER forestos_user WITH PASSWORD '$DB_PASSWORD';" 2>/dev/null || echo "  ℹ User already exists"
+sudo -u postgres psql -c "CREATE DATABASE forestos OWNER forestos_user;" 2>/dev/null || echo "  ℹ Database already exists"
+sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE forestos TO forestos_user;" 2>/dev/null
+echo "  ✓ Database and user created"
 
 # Install Redis
 echo -e "${GREEN}[6/15] Installing Redis...${NC}"
@@ -142,9 +150,9 @@ cat > "$APP_DIR/Server/.env" << EOF
 # ForestOS Backend Configuration
 # Generated: $(date)
 
-# Database Configuration (AliCloud PostgreSQL)
-DATABASE_URL=postgresql://forestos_user:CHANGEME@rm-xxxxx.pg.rds.aliyuncs.com:5432/forestos
-ASYNC_DATABASE_URL=postgresql+asyncpg://forestos_user:CHANGEME@rm-xxxxx.pg.rds.aliyuncs.com:5432/forestos
+# Database Configuration (Local PostgreSQL)
+DATABASE_URL=postgresql://forestos_user:$DB_PASSWORD@localhost:5432/forestos
+ASYNC_DATABASE_URL=postgresql+asyncpg://forestos_user:$DB_PASSWORD@localhost:5432/forestos
 
 # Redis Configuration
 REDIS_URL=redis://localhost:6379/0
@@ -278,9 +286,12 @@ echo "=============================================="
 echo "IMPORTANT: Next Steps"
 echo "=============================================="
 echo ""
-echo "1. Configure AliCloud PostgreSQL:"
-echo "   - Update DATABASE_URL in: $APP_DIR/Server/.env"
-echo "   - Whitelist this VPS IP in AliCloud console"
+echo "1. Database Configuration:"
+echo "   ✓ PostgreSQL installed locally"
+echo "   ✓ Database 'forestos' created"
+echo "   ✓ User 'forestos_user' created"
+echo "   ✓ Password: $DB_PASSWORD"
+echo "   (Password saved in .env file)"
 echo ""
 echo "2. Get Perenual API Key:"
 echo "   - Visit: https://perenual.com/docs/api"
@@ -291,24 +302,42 @@ echo "   cd $APP_DIR/Server"
 echo "   source venv/bin/activate"
 echo "   alembic upgrade head"
 echo ""
-echo "4. Start Services:"
+echo "4. Populate Initial Plant Data (optional):"
+echo "   cd $APP_DIR/Server"
+echo "   source venv/bin/activate"
+echo "   python scripts/seed_plants.py"
+echo ""
+echo "5. Start Services:"
 echo "   supervisorctl start forestos-api"
 echo "   supervisorctl start forestos-celery"
 echo ""
 if [ -n "$DOMAIN" ]; then
-echo "5. Configure SSL Certificate:"
+echo "6. Configure SSL Certificate:"
 echo "   certbot --nginx -d $DOMAIN --email $ADMIN_EMAIL --agree-tos --non-interactive"
 echo ""
-echo "6. Test API:"
+echo "7. Test API:"
 echo "   curl https://$DOMAIN/docs"
 else
-echo "5. Configure SSL Certificate (when domain is ready):"
+echo "6. Configure SSL Certificate (when domain is ready):"
 echo "   export DOMAIN=api.forestos.com"
 echo "   certbot --nginx -d \$DOMAIN --email $ADMIN_EMAIL --agree-tos"
 echo ""
-echo "6. Test API:"
+echo "7. Test API:"
 echo "   curl http://YOUR_SERVER_IP/docs"
 fi
+echo ""
+echo "=============================================="
+echo "Database Information"
+echo "=============================================="
+echo ""
+echo "Database: forestos"
+echo "User: forestos_user"
+echo "Password: $DB_PASSWORD"
+echo "Host: localhost"
+echo "Port: 5432"
+echo "Connection String: postgresql://forestos_user:$DB_PASSWORD@localhost:5432/forestos"
+echo ""
+echo "⚠️  IMPORTANT: Save the database password!"
 echo ""
 echo "=============================================="
 echo "Useful Commands"
