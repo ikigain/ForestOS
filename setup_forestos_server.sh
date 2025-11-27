@@ -43,13 +43,23 @@ if [ -f /etc/os-release ]; then
     echo "  ✓ Operating System: $PRETTY_NAME"
 fi
 
+# Check if Python 3.11 is already installed FIRST (before any apt operations)
+echo -e "${GREEN}[2/15] Checking Python 3.11 installation...${NC}"
+PYTHON_311_EXISTS=false
+if command -v python3.11 &> /dev/null; then
+    echo "  ✓ Python 3.11 already installed"
+    PYTHON_311_EXISTS=true
+else
+    echo "  ℹ Python 3.11 not found, will install from PPA"
+fi
+
 # Update system packages
-echo -e "${GREEN}[2/15] Updating system packages...${NC}"
+echo -e "${GREEN}[3/15] Updating system packages...${NC}"
 apt update
 apt upgrade -y
 
 # Install system dependencies
-echo -e "${GREEN}[3/15] Installing system dependencies...${NC}"
+echo -e "${GREEN}[4/15] Installing system dependencies...${NC}"
 apt install -y \
     git \
     curl \
@@ -60,17 +70,18 @@ apt install -y \
     gnupg \
     lsb-release
 
-# Install Python 3.11
-echo -e "${GREEN}[4/15] Installing Python 3.11...${NC}"
-# Check if Python 3.11 is already installed
-if command -v python3.11 &> /dev/null; then
-    echo "  ✓ Python 3.11 already installed, skipping PPA setup"
+# Install Python 3.11 based on earlier check
+echo -e "${GREEN}[5/15] Installing Python 3.11...${NC}"
+if [ "$PYTHON_311_EXISTS" = true ]; then
+    echo "  ✓ Skipping PPA setup (Python 3.11 already installed)"
+    # Only install supporting packages, not python3.11 itself
     apt install -y \
         python3.11-venv \
         python3.11-dev \
-        python3-pip 2>/dev/null || true
+        python3-pip 2>/dev/null || echo "  ℹ Some packages may already be installed"
 else
-    # Only add PPA if Python 3.11 is not installed
+    # Add PPA and install Python 3.11
+    echo "  Installing Python 3.11 from deadsnakes PPA..."
     add-apt-repository -y ppa:deadsnakes/ppa
     apt update
     apt install -y \
@@ -87,7 +98,7 @@ fi
 echo "  ✓ Python version: $(python3 --version)"
 
 # Install PostgreSQL server
-echo -e "${GREEN}[5/15] Installing PostgreSQL server...${NC}"
+echo -e "${GREEN}[6/15] Installing PostgreSQL server...${NC}"
 apt install -y postgresql postgresql-contrib
 systemctl start postgresql
 systemctl enable postgresql
@@ -101,33 +112,33 @@ sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE forestos TO forestos_
 echo "  ✓ Database and user created"
 
 # Install Redis
-echo -e "${GREEN}[6/15] Installing Redis...${NC}"
+echo -e "${GREEN}[7/15] Installing Redis...${NC}"
 apt install -y redis-server
 systemctl start redis-server
 systemctl enable redis-server
 echo "  ✓ Redis server installed and running"
 
 # Install Nginx
-echo -e "${GREEN}[7/15] Installing Nginx...${NC}"
+echo -e "${GREEN}[8/15] Installing Nginx...${NC}"
 apt install -y nginx
 systemctl start nginx
 systemctl enable nginx
 echo "  ✓ Nginx installed and running"
 
 # Install Supervisor (process manager)
-echo -e "${GREEN}[8/15] Installing Supervisor...${NC}"
+echo -e "${GREEN}[9/15] Installing Supervisor...${NC}"
 apt install -y supervisor
 systemctl start supervisor
 systemctl enable supervisor
 echo "  ✓ Supervisor installed and running"
 
 # Install Certbot (Let's Encrypt SSL)
-echo -e "${GREEN}[9/15] Installing Certbot for SSL...${NC}"
+echo -e "${GREEN}[10/15] Installing Certbot for SSL...${NC}"
 apt install -y certbot python3-certbot-nginx
 echo "  ✓ Certbot installed"
 
 # Clone ForestOS repository
-echo -e "${GREEN}[10/15] Cloning ForestOS from GitHub...${NC}"
+echo -e "${GREEN}[11/15] Cloning ForestOS from GitHub...${NC}"
 if [ -d "$APP_DIR" ]; then
     echo "  ⚠ Directory $APP_DIR exists. Backing up..."
     mv "$APP_DIR" "${APP_DIR}_backup_$(date +%Y%m%d_%H%M%S)"
@@ -137,7 +148,7 @@ cd "$APP_DIR"
 echo "  ✓ Repository cloned to $APP_DIR"
 
 # Create Python virtual environment
-echo -e "${GREEN}[11/15] Setting up Python virtual environment...${NC}"
+echo -e "${GREEN}[12/15] Setting up Python virtual environment...${NC}"
 cd "$APP_DIR/Server"
 python3.11 -m venv venv
 source venv/bin/activate
@@ -150,14 +161,14 @@ pip install -r requirements.txt
 echo "  ✓ All Python dependencies installed"
 
 # Create directories
-echo -e "${GREEN}[12/15] Creating application directories...${NC}"
+echo -e "${GREEN}[13/15] Creating application directories...${NC}"
 mkdir -p "$APP_DIR/images/plants"
 mkdir -p "$APP_DIR/logs"
 mkdir -p /var/log/forestos
 echo "  ✓ Directories created"
 
 # Generate .env file
-echo -e "${GREEN}[13/15] Generating configuration files...${NC}"
+echo -e "${GREEN}[14/15] Generating configuration files...${NC}"
 cat > "$APP_DIR/Server/.env" << EOF
 # ForestOS Backend Configuration
 # Generated: $(date)
@@ -204,7 +215,7 @@ chmod 600 "$APP_DIR/Server/.env"
 echo "  ✓ Permissions configured"
 
 # Configure Supervisor
-echo -e "${GREEN}[14/15] Configuring Supervisor for process management...${NC}"
+echo -e "${GREEN}[15/15] Configuring Supervisor for process management...${NC}"
 cat > /etc/supervisor/conf.d/forestos.conf << EOF
 [program:forestos-api]
 command=$APP_DIR/Server/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
@@ -232,7 +243,7 @@ supervisorctl update
 echo "  ✓ Supervisor configured"
 
 # Configure Nginx
-echo -e "${GREEN}[15/15] Configuring Nginx reverse proxy...${NC}"
+echo -e "${GREEN}[16/16] Configuring Nginx reverse proxy...${NC}"
 cat > /etc/nginx/sites-available/forestos << 'EOF'
 server {
     listen 80;
