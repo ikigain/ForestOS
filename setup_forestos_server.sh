@@ -62,8 +62,15 @@ apt install -y \
 
 # Install Python 3.11
 echo -e "${GREEN}[4/15] Installing Python 3.11...${NC}"
-add-apt-repository -y ppa:deadsnakes/ppa
-apt update
+# Check if Python 3.11 is already installed
+if command -v python3.11 &> /dev/null; then
+    echo "  ✓ Python 3.11 already installed"
+else
+    # Only add PPA if Python 3.11 is not installed
+    add-apt-repository -y ppa:deadsnakes/ppa
+    apt update
+fi
+
 apt install -y \
     python3.11 \
     python3.11-venv \
