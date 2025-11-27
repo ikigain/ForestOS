@@ -64,21 +64,26 @@ apt install -y \
 echo -e "${GREEN}[4/15] Installing Python 3.11...${NC}"
 # Check if Python 3.11 is already installed
 if command -v python3.11 &> /dev/null; then
-    echo "  ✓ Python 3.11 already installed"
+    echo "  ✓ Python 3.11 already installed, skipping PPA setup"
+    apt install -y \
+        python3.11-venv \
+        python3.11-dev \
+        python3-pip 2>/dev/null || true
 else
     # Only add PPA if Python 3.11 is not installed
     add-apt-repository -y ppa:deadsnakes/ppa
     apt update
+    apt install -y \
+        python3.11 \
+        python3.11-venv \
+        python3.11-dev \
+        python3-pip
 fi
 
-apt install -y \
-    python3.11 \
-    python3.11-venv \
-    python3.11-dev \
-    python3-pip
-
-# Set Python 3.11 as default
-update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
+# Set Python 3.11 as default (only if not already set)
+if ! python3 --version | grep -q "3.11"; then
+    update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
+fi
 echo "  ✓ Python version: $(python3 --version)"
 
 # Install PostgreSQL server
