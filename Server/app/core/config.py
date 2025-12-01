@@ -36,9 +36,14 @@ class Settings(BaseSettings):
     PERENUAL_API_KEY: str = "your-api-key-here"
     PERENUAL_API_BASE_URL: str = "https://perenual.com/api"
     
+    # Image storage settings (allow these extra)
+    IMAGE_BASE_PATH: str | None = None
+    IMAGE_BASE_URL: str | None = None
+    
     class Config:
         env_file = ".env"
         case_sensitive = True
+        extra = "allow"  # allow extra env variables with no validation
 
 
 settings = Settings()
